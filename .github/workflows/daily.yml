@@ -18,6 +18,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           SITE_URL: ${{ vars.SITE_URL }}
           NEWS_LANG: fr
+          GSC_TOKEN: ${{ vars.GSC_TOKEN }}
       - run: |
           git config user.name "The-Bible-Talks Bot"
           git config user.email "bot@users.noreply.github.com"
