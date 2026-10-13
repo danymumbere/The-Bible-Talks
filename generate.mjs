@@ -1,7 +1,6 @@
 // The-Bible-Talks : génère 1 page/jour (actualité -> question -> passage -> message). Node 20+, zéro dépendance.
 import fs from 'node:fs';
 const { GNEWS_API_KEY, GEMINI_API_KEY, SITE_URL = '', NEWS_LANG = 'fr' } = process.env;
-const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 const SITE = SITE_URL.replace(/\/$/, '');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const slug = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
@@ -24,18 +23,37 @@ Voici l'actualité du jour :\n${list}\n
 3) Rédige un message biblique clair, bienveillant et concret, fondé sur le passage.
 Réponds UNIQUEMENT en JSON :
 {"main":int,"related":[0-2 indices d'articles du même sujet],"situation":"courte, ex: la crise climatique","title":"Que dit la Bible à propos de <situation> ?","description":"meta <155 car.","faits":["3 à 5 faits tirés des articles, sans rien inventer"],"questions":["3 questions que cette actualité soulève"],"passage":{"reference":"Livre 0:0-0","texte":"..."},"message_title":"...","message":["4 à 6 paragraphes"]}`;
+async function pickModels() {
+  const found = [];
+  try {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=${GEMINI_API_KEY}`);
+    const j = await r.json();
+    if (!j.models) console.log('Liste des modèles indisponible :', JSON.stringify(j.error || j).slice(0, 300));
+    for (const m of j.models || []) {
+      const n = m.name.replace('models/', '');
+      if (!m.supportedGenerationMethods?.includes('generateContent')) continue;
+      if (!/flash/.test(n) || /image|tts|live|audio|embed|robotics|computer|exp|latest/.test(n)) continue;
+      found.push(n);
+    }
+  } catch (e) { console.log('Erreur liste des modèles :', e.message); }
+  const ver = n => parseFloat(n.match(/gemini-(\d+(?:\.\d+)?)/)?.[1] || 0);
+  // plus récent d'abord ; "lite" après les modèles normaux de même version
+  found.sort((x, y) => ver(y) - ver(x) || /lite/.test(x) - /lite/.test(y) || x.length - y.length);
+  const all = [process.env.GEMINI_MODEL, ...found].filter(Boolean).filter((m, i, t) => t.indexOf(m) === i).slice(0, 5);
+  console.log('Modèles à essayer :', all.join(', ') || '(aucun)');
+  return all;
+}
 async function askAI() {
-  const models = [MODEL, 'gemini-2.5-flash-lite', 'gemini-flash'].filter((m, i, t) => t.indexOf(m) === i);
-  for (const m of models) for (let t = 1; t <= 3; t++) {
+  for (const m of await pickModels()) for (let t = 1; t <= 3; t++) {
     const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.7 } })
     });
     const j = await r.json().catch(() => ({}));
-    const txt = j.candidates?.[0]?.content?.parts?.map(p => p.text).join('');
+    const txt = j.candidates?.[0]?.content?.parts?.filter(p => !p.thought).map(p => p.text).join('');
     if (txt) { try { return JSON.parse(txt.replace(/```json|```/g, '').trim()); } catch (e) { console.log(`[${m}] JSON invalide, nouvel essai`); } }
     else console.log(`[${m}] essai ${t} : HTTP ${r.status} — ${JSON.stringify(j.error || j.promptFeedback || j).slice(0, 400)}`);
-    if (r.status === 400 || r.status === 403) break; // clé invalide / refus : inutile d'insister sur ce modèle
+    if ([400, 403, 404].includes(r.status)) break; // clé refusée / modèle indisponible : passer au suivant
     await new Promise(res => setTimeout(res, 8000 * t));
   }
   throw new Error('Gemini n\'a donné aucune réponse exploitable (voir les messages ci-dessus)');
