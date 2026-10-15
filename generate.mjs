@@ -21,6 +21,7 @@ Voici l'actualité du jour :\n${list}\n
 1) Choisis le sujet le plus marquant (buzz) qui se prête à une réflexion biblique respectueuse (évite le partisan, le graphique ; compassion si drame).
 2) Trouve UN passage biblique (version Louis Segond 1910 si français) qui répond aux questions soulevées. Cite-le fidèlement, avec la référence exacte.
 3) Rédige un message biblique clair, bienveillant et concret, fondé sur le passage. Attention: Dans ce message, une phrase que la Bible approuve vaut mieux que mille qui ne sont pas bibliques.
+4) Comme toute la Bible a pour centre Jésus-Christ, ton objectif sera aussi de présenter Jésus-Christ.
 Réponds UNIQUEMENT en JSON :
 {"main":int,"related":[0-2 indices d'articles du même sujet],"situation":"courte, ex: la crise climatique","title":"Que dit la Bible à propos de <situation> ?","description":"meta <155 car.","faits":["3 à 5 faits tirés des articles, sans rien inventer"],"questions":["3 questions que cette actualité soulève"],"passage":{"reference":"Livre 0:0-0","texte":"..."},"message_title":"...","message":["4 à 6 paragraphes"]}`;
 async function pickModels() {
